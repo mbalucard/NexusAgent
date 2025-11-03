@@ -4,7 +4,7 @@ import time
 import uvicorn
 
 from concurrent_log_handler import ConcurrentRotatingFileHandler
-from fastapi import  HTTPException, FastAPI
+from fastapi import HTTPException, FastAPI
 from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 from psycopg_pool import AsyncConnectionPool
@@ -18,7 +18,6 @@ from utils.tools import get_tools
 from utils.message_tools import trimmed_messages_hook, async_parse_messages
 
 from langgraph.types import Command
-from langgraph.prebuilt import create_react_agent
 from langchain.agents import create_agent
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres import AsyncPostgresStore
@@ -60,7 +59,7 @@ async def process_agent_result(
         # 检查是否有中断
         if "__interrupt__" in result:
             interrupts = result["__interrupt__"]
-            
+
             # 如果有多个中断，需要特殊处理
             if len(interrupts) > 1:
                 # 收集所有中断数据
@@ -72,7 +71,7 @@ async def process_agent_result(
                     # 添加中断ID
                     interrupt_data["interrupt_id"] = interrupt.id
                     all_interrupt_data.append(interrupt_data)
-                
+
                 # 返回多中断信息
                 response = AgentResponse(
                     session_id=session_id,
@@ -91,7 +90,7 @@ async def process_agent_result(
                     interrupt_data["interrupt_type"] = "unknown"
                 # 添加中断ID
                 interrupt_data["interrupt_id"] = interrupts[0].id
-                
+
                 response = AgentResponse(
                     session_id=session_id,
                     status="interrupted",
@@ -240,15 +239,6 @@ async def lifespan(app: FastAPI):
 
             # 获取工具列表
             tools = await get_tools()
-
-            # 创建ReAct风格的agent 并存储为单实例
-            # app.state.agent = create_react_agent(
-            #     model=llm_chat,
-            #     tools=tools,
-            #     pre_model_hook=trimmed_messages_hook,
-            #     checkpointer=app.state.checkpointer,
-            #     store=app.state.store
-            # )
 
             app.state.agent = create_agent(
                 model=llm_chat,
@@ -448,7 +438,7 @@ async def resume_agent(response: InterruptResponse):
             command_data = response.interrupt_responses
             logger.info(f"恢复多个中断执行，中断响应数据: {command_data}")
             result = await app.state.agent.ainvoke(
-                Command(resume=command_data), 
+                Command(resume=command_data),
                 config={"configurable": {"thread_id": session_id}}
             )
         elif response.interrupt_id:
@@ -459,9 +449,10 @@ async def resume_agent(response: InterruptResponse):
                     **(response.args or {})
                 }
             }
-            logger.info(f"恢复指定中断执行，中断ID: {response.interrupt_id}, 响应数据: {command_data}")
+            logger.info(
+                f"恢复指定中断执行，中断ID: {response.interrupt_id}, 响应数据: {command_data}")
             result = await app.state.agent.ainvoke(
-                Command(resume=command_data), 
+                Command(resume=command_data),
                 config={"configurable": {"thread_id": session_id}}
             )
         else:
@@ -471,10 +462,10 @@ async def resume_agent(response: InterruptResponse):
             }
             if response.args:
                 command_data["args"] = response.args
-            
+
             logger.info(f"恢复单个中断执行（兼容模式），响应数据: {command_data}")
             result = await app.state.agent.ainvoke(
-                Command(resume=command_data), 
+                Command(resume=command_data),
                 config={"configurable": {"thread_id": session_id}}
             )
         # 将返回的messages进行格式化输出 方便查看调试

@@ -11,6 +11,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from configs.configuration import ConfigLogFile
 from configs.mcp_server import mcp_server_configs
+from utils.custom_tools import review_tools, normal_tools
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -121,45 +122,18 @@ async def get_tools():
     """
     获取工具
     """
-    @create_tool("book_hotel", description="酒店预定工具")
-    async def book_hotel(hotel_name: str):
-        """
-        支持酒店预定的工具
-
-        Args:
-            hotel_name: 酒店名称
-
-        Returns:
-            工具的调用结果
-        """
-        return f"成功预定了在{hotel_name}的住宿。"
-
-    # 自定义工具 计算两个数的乘积的工具
-    @create_tool("multiply", description="计算两个数的乘积的工具")
-    async def multiply(a: float, b: float) -> float:
-        """
-        支持计算两个数的乘积的工具
-
-        Args:
-            a: 参数1
-            b: 参数2
-
-        Returns:
-            工具的调用结果
-        """
-        result = a * b
-        return f"{a}乘以{b}等于{result}。"
-
     client = MultiServerMCPClient(
-        # 高德地图MCP Server
+        # MCP Server配置
         mcp_server_configs
     )
-    amap_tools = await client.get_tools()
-    # 为工具加入人工审核
-    tools = [await add_human_in_the_loop(index) for index in amap_tools]
+    mcp_server_tools = await client.get_tools()
+    # 为mcp server工具加入人工审核
+    tools = [await add_human_in_the_loop(index) for index in mcp_server_tools]
     # 追加自定义工具并添加人工审核
-    tools.append(await add_human_in_the_loop(book_hotel))
-    tools.append(multiply)
+    tools_lsit = [await add_human_in_the_loop(index) for index in review_tools]
+    tools.extend(tools_lsit)
+    # 追加自定义工具
+    tools.extend(normal_tools)
 
     return tools
 
@@ -183,53 +157,6 @@ def read_md_file(file_path: str) -> str:
     except Exception as e:
         return f"读取文件时出错: {str(e)}"
 
-# ! get_tools_test 为测试函数，后期删除
-async def get_tools_test():
-    """
-    获取工具
-    """
-    @create_tool("book_hotel", description="酒店预定工具")
-    async def book_hotel(hotel_name: str):
-        """
-        支持酒店预定的工具
-
-        Args:
-            hotel_name: 酒店名称
-
-        Returns:
-            工具的调用结果
-        """
-        return f"成功预定了在{hotel_name}的住宿。"
-
-    # 自定义工具 计算两个数的乘积的工具
-    @create_tool("multiply", description="计算两个数的乘积的工具")
-    async def multiply(a: float, b: float) -> float:
-        """
-        支持计算两个数的乘积的工具
-
-        Args:
-            a: 参数1
-            b: 参数2
-
-        Returns:
-            工具的调用结果
-        """
-        result = a * b
-        return f"{a}乘以{b}等于{result}。"
-
-    client = MultiServerMCPClient(
-        # 高德地图MCP Server
-        mcp_server_configs
-    )
-    amap_tools = await client.get_tools()
-    # 为工具加入人工审核
-    tools = [index for index in amap_tools]
-    # 追加自定义工具并添加人工审核
-    tools.append(book_hotel)
-    tools.append(multiply)
-
-    return tools
-
 
 if __name__ == "__main__":
     import asyncio
@@ -239,3 +166,6 @@ if __name__ == "__main__":
         print(f"工具描述 (Description): {tool.description}")
         print(f"工具参数 (Args): {tool.args}")
         print("=" * 30)  # 打印分隔线
+
+    # print(f"review_tools: {review_tools}")
+    # print(f"normal_tools: {normal_tools}")

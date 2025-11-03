@@ -1,36 +1,17 @@
-import logging
-import uuid
 import asyncio
 
-from concurrent_log_handler import ConcurrentRotatingFileHandler
-from typing import List, Any, Optional, Dict
-from fastapi import HTTPException
+from typing import List, Any
 
 from langchain_core.messages.utils import trim_messages, RemoveMessage
 from langchain.agents.middleware import before_model
 from langchain.agents import AgentState
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from langgraph.runtime import Runtime
-from configs.configuration import ConfigLogFile
 
+from utils.logger_manager import LoggerManager
 
 # 设置日志
-logger = logging.getLogger(__name__)
-# 日志级别设置，DEBUG，INFO，WARNING，ERROR，CRITICAL
-logger.setLevel(logging.DEBUG)
-logger.handlers = []  # 清空默认处理器
-handler = ConcurrentRotatingFileHandler(
-    ConfigLogFile.LOG_FILE_PATH,  # 日志文件路径
-    maxBytes=ConfigLogFile.MAX_BYTES,  # 日志文件最大大小
-    backupCount=ConfigLogFile.BACKUP_COUNT  # 日志文件备份数量
-)
-# 设置处理级别为DEBUG
-handler.setLevel(logging.DEBUG)
-# 设置日志格式
-handler.setFormatter(logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-# 添加处理器到日志
-logger.addHandler(handler)
+logger = LoggerManager.get_logger(name=__name__)
 
 @before_model
 def trimmed_messages_hook(state: AgentState, runtime: Runtime):

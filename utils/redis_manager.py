@@ -1,34 +1,17 @@
-import logging
 import uuid
 import json
 
-from concurrent_log_handler import ConcurrentRotatingFileHandler
 import redis.asyncio as redis
-from typing import Dict, Any, Optional, List
+from typing import Dict, Optional, List
 from datetime import timedelta
 from pydantic import BaseModel
 
-from configs.configuration import ConfigLogFile, ConfigRedis
+from configs.configuration import  ConfigRedis
 from utils.data_models import AgentResponse
-
+from utils.logger_manager import LoggerManager
 
 # 设置日志
-logger = logging.getLogger(__name__)
-# 日志级别设置，DEBUG，INFO，WARNING，ERROR，CRITICAL
-logger.setLevel(logging.DEBUG)
-logger.handlers = []  # 清空默认处理器
-handler = ConcurrentRotatingFileHandler(
-    ConfigLogFile.LOG_FILE_PATH,  # 日志文件路径
-    maxBytes=ConfigLogFile.MAX_BYTES,  # 日志文件最大大小
-    backupCount=ConfigLogFile.BACKUP_COUNT  # 日志文件备份数量
-)
-# 设置处理级别为DEBUG
-handler.setLevel(logging.DEBUG)
-# 设置日志格式
-handler.setFormatter(logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-# 添加处理器到日志
-logger.addHandler(handler)
+logger = LoggerManager.get_logger(name=__name__)
 
 
 class RedisSessionManager:

@@ -1,6 +1,3 @@
-import logging
-
-from concurrent_log_handler import ConcurrentRotatingFileHandler
 from typing import Callable
 
 from langchain.tools import BaseTool, tool as create_tool
@@ -9,27 +6,12 @@ from langgraph.prebuilt.interrupt import HumanInterrupt, HumanInterruptConfig
 from langgraph.types import interrupt, Command
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from configs.configuration import ConfigLogFile
 from configs.mcp_server import mcp_server_configs
 from utils.custom_tools import review_tools, normal_tools
+from utils.logger_manager import LoggerManager
 
 # 设置日志
-logger = logging.getLogger(__name__)
-# 日志级别设置，DEBUG，INFO，WARNING，ERROR，CRITICAL
-logger.setLevel(logging.DEBUG)
-logger.handlers = []  # 清空默认处理器
-handler = ConcurrentRotatingFileHandler(
-    ConfigLogFile.LOG_FILE_PATH,  # 日志文件路径
-    maxBytes=ConfigLogFile.MAX_BYTES,  # 日志文件最大大小
-    backupCount=ConfigLogFile.BACKUP_COUNT  # 日志文件备份数量
-)
-# 设置处理级别为DEBUG
-handler.setLevel(logging.DEBUG)
-# 设置日志格式
-handler.setFormatter(logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-# 添加处理器到日志
-logger.addHandler(handler)
+logger = LoggerManager.get_logger(name=__name__)
 
 
 async def add_human_in_the_loop(tool: Callable | BaseTool, *, interrupt_config: HumanInterruptConfig = None) -> BaseTool:

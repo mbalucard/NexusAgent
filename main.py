@@ -1,21 +1,20 @@
-import logging
 import uuid
 import time
 import uvicorn
 
-from concurrent_log_handler import ConcurrentRotatingFileHandler
 from fastapi import HTTPException, FastAPI
 from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 from psycopg_pool import AsyncConnectionPool
 
-from configs.configuration import ConfigLogFile, DatabaseConfig, ConfigRedis, ConfigAPI
+from configs.configuration import DatabaseConfig, ConfigRedis, ConfigAPI
 from configs.model_configs import ModelParameter
 from utils.redis_manager import get_session_manager
 from utils.data_models import AgentResponse, AgentRequest, InterruptResponse, SessionStatusResponse, ActiveSessionInfoResponse, SessionInfoResponse, SystemInfoResponse, LongMemRequest
 from utils.llms import get_llm
 from utils.tools import get_tools
 from utils.message_tools import trimmed_messages_hook, async_parse_messages
+from utils.logger_manager import LoggerManager
 
 from langgraph.types import Command
 from langchain.agents import create_agent
@@ -23,22 +22,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres import AsyncPostgresStore
 
 # 设置日志
-logger = logging.getLogger(__name__)
-# 日志级别设置，DEBUG，INFO，WARNING，ERROR，CRITICAL
-logger.setLevel(logging.DEBUG)
-logger.handlers = []  # 清空默认处理器
-handler = ConcurrentRotatingFileHandler(
-    ConfigLogFile.LOG_FILE_PATH,  # 日志文件路径
-    maxBytes=ConfigLogFile.MAX_BYTES,  # 日志文件最大大小
-    backupCount=ConfigLogFile.BACKUP_COUNT  # 日志文件备份数量
-)
-# 设置处理级别为DEBUG
-handler.setLevel(logging.DEBUG)
-# 设置日志格式
-handler.setFormatter(logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-# 添加处理器到日志
-logger.addHandler(handler)
+logger = LoggerManager.get_logger(name=__name__)
 
 
 async def process_agent_result(

@@ -67,3 +67,10 @@ class LoggerManager:
             logger.setLevel(level)
         if cls._handler:
             cls._handler.setLevel(level)
+
+if __name__ == "__main__":
+    logger = LoggerManager.get_logger(name=__name__)
+    logger.info("This is a test log")
+    logger.warning("This is a warning log")
+    logger.error("This is an error log")
+    logger.critical("This is a critical log")

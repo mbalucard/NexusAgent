@@ -53,6 +53,7 @@ class MemoryService:
             # 处理其他未预期的错误
             logger.error(f"获取用户ID: {user_id} 的长期记忆时发生意外错误: {str(e)}")
             raise HTTPException(status_code=500, detail=f"获取长期记忆失败: {str(e)}")
+
     async def write_long_term_info(self, user_id: str, memory_info: str):
         """
         写入指定用户长期记忆内容
@@ -84,3 +85,22 @@ class MemoryService:
             # 处理其他未预期的错误
             logger.error(f"存储用户ID: {user_id} 的记忆时发生意外错误: {str(e)}")
             raise HTTPException(status_code=500, detail=f"存储记忆失败: {str(e)}")
+
+
+def get_memory_service(state):
+    """
+    获取记忆服务实例
+    Args:
+        state: 应用状态实例
+    Returns:
+        MemoryService: 记忆服务实例
+    """
+    try:
+        return MemoryService(state.store)
+    except Exception as e:
+        logger.error(f"获取记忆服务实例时发生错误: {str(e)}")
+        raise RuntimeError(f"获取记忆服务实例时发生错误: {str(e)}")
+
+
+if __name__ == "__main__":
+    pass

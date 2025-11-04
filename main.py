@@ -20,7 +20,7 @@ from langgraph.types import Command
 from langchain.agents import create_agent
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres import AsyncPostgresStore
-from utils.memory_service import MemoryService
+from utils.memory_service import get_memory_service
 # 设置日志
 logger = LoggerManager.get_logger(name=__name__)
 
@@ -116,21 +116,6 @@ async def process_agent_result(
         )
 
     return response
-
-
-def get_memory_service(state):
-    """
-    获取记忆服务实例
-    Args:
-        state: 应用状态
-    Returns:
-        MemoryService: 记忆服务实例
-    """
-    try:
-        return MemoryService(state.store)
-    except Exception as e:
-        logger.error(f"获取记忆服务实例时发生错误: {str(e)}")
-        raise RuntimeError(f"获取记忆服务实例时发生错误: {str(e)}")
 
 
 @asynccontextmanager

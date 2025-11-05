@@ -6,11 +6,14 @@ NexusAgent 是一个基于 LangGraph 和 FastAPI 构建的现代化智能代理�
 
 - **多模型支持**: 集成通义千问(Qwen)、DeepSeek等主流大语言模型
 - **智能工具调用**: 支持自定义工具和MCP服务器工具集成
-- **人工审核机制**: 工具调用前的人工审核(Human-in-the-Loop)
-- **会话管理**: 基于Redis的分布式会话状态管理
-- **长期记忆**: 基于PostgreSQL的用户偏好和记忆存储
+- **人工审核机制**: 工具调用前的人工审核(Human-in-the-Loop)，支持多种响应类型和批量处理
+- **会话管理**: 基于Redis的分布式会话状态管理，支持多会话和活跃会话追踪
+- **双重记忆系统**:
+  - 短期记忆: 基于PostgreSQL的checkpointer，管理对话上下文
+  - 长期记忆: 基于PostgreSQL的store，持久化用户偏好和历史信息
 - **前端界面**: Rich库构建的交互式命令行界面
-- **RESTful API**: 完整的后端API接口服务
+- **RESTful API**: 完整的后端API接口服务，模块化路由设计
+- **消息优化**: 自动消息修剪中间件，优化token使用和性能
 
 ## 📁 项目结构
 
@@ -21,20 +24,26 @@ NexusAgent/
 │   ├── configuration.py       # 主要配置类(数据库、Redis、API等)
 │   ├── mcp_server.py          # MCP服务器配置
 │   └── model_configs.py       # 模型配置参数
+├── routes/                     # API路由模块
+│   ├── __init__.py
+│   └── agent.py               # 智能代理相关的API路由实现
 ├── frontend/                   # 前端模块
 │   └── frontend_main.py       # Rich库构建的交互式客户端
 ├── utils/                      # 工具模块
 │   ├── __init__.py
+│   ├── custom_tools.py        # 自定义工具定义(计算、预订等)
 │   ├── data_models.py         # Pydantic数据模型定义
 │   ├── llms.py                # 大语言模型初始化和管理
+│   ├── logger_manager.py      # 日志管理器
+│   ├── memory_service.py      # 长期记忆服务(读写用户记忆)
 │   ├── message_tools.py       # 消息处理和解析工具
 │   ├── redis_manager.py       # Redis会话管理器
-│   └── tools.py               # 工具定义和人工审核逻辑
+│   └── tools.py               # 工具管理和人工审核逻辑
 ├── logfile/                    # 日志文件目录
 │   └── app.log                # 应用日志
 ├── markdown/                   # 文档目录
 │   └── system_massage.md      # 系统提示词模板
-├── main.py                     # 主应用程序入口
+├── main.py                     # 主应用程序入口(FastAPI应用)
 ├── pyproject.toml             # 项目依赖配置
 ├── setup.py                   # 项目安装配置
 └── uv.lock                    # 依赖锁定文件
@@ -47,8 +56,10 @@ NexusAgent/
 - **FastAPI**: 现代化的Python Web框架
 - **LangGraph**: 智能代理状态图管理
 - **LangChain**: 大语言模型应用开发框架
-- **PostgreSQL**: 关系型数据库(短期记忆和长期存储)
+- **PostgreSQL**: 关系型数据库(短期记忆checkpointer和长期存储store)
 - **Redis**: 内存数据库(会话状态管理)
+- **psycopg**: PostgreSQL异步连接池
+- **Pydantic**: 数据验证和模型定义
 
 ### 模型集成
 
@@ -59,8 +70,9 @@ NexusAgent/
 ### 工具与服务
 
 - **MCP (Model Context Protocol)**: 模型上下文协议
-- **高德地图API**: 地理位置服务集成
+- **langchain-mcp-adapters**: LangChain与MCP服务器的适配器
 - **Rich**: 终端界面美化库
+- **concurrent-log-handler**: 并发安全的日志轮转处理器
 
 ## 📋 环境要求
 
@@ -251,9 +263,22 @@ Content-Type: application/json
     "user_id": "user123",
     "session_id": "session456",
     "response_type": "accept",
-    "args": {}
+    "args": {},
+    "interrupt_id": "interrupt123",           # 可选: 指定中断ID
+    "interrupt_responses": {                  # 可选: 批量中断响应
+        "interrupt_id_1": {
+            "type": "accept",
+            "args": {}
+        }
+    }
 }
 ```
+
+**注意**: 支持三种恢复模式：
+
+- 批量恢复: 使用 `interrupt_responses` 字段
+- 单中断恢复: 使用 `interrupt_id` 字段
+- 兼容模式: 仅使用 `response_type` 和 `args` 字段
 
 #### 3. 获取会话状态
 
@@ -275,10 +300,12 @@ Content-Type: application/json
 
 ### 系统管理接口
 
-- `GET /system/info` - 获取系统信息
-- `GET /agent/sessionids/{user_id}` - 获取用户所有会话
-- `GET /agent/active/sessionid/{user_id}` - 获取用户活跃会话
-- `DELETE /agent/session/{user_id}/{session_id}` - 删除指定会话
+- `GET /system/info` - 获取系统信息(会话总数、活跃用户列表)
+- `GET /agent/sessionids/{user_id}` - 获取指定用户的所有会话ID列表
+- `GET /agent/active/sessionid/{user_id}` - 获取指定用户当前最近更新的活跃会话ID
+- `GET /agent/status/{user_id}/{session_id}` - 获取指定会话的详细状态信息
+- `DELETE /agent/session/{user_id}/{session_id}` - 删除指定的用户会话
+- `POST /agent/write/longterm` - 写入用户的长期记忆信息
 
 ## 🔧 核心功能
 
@@ -287,30 +314,42 @@ Content-Type: application/json
 - 基于LangGraph的ReAct模式代理
 - 支持工具调用和多轮对话
 - 自动状态管理和错误处理
+- RESTful API接口设计，完整的路由管理
 
-### 2. 人工审核机制
+### 2. 人工审核机制(Human-in-the-Loop)
 
 - 工具调用前的人工确认
-- 支持接受、拒绝、编辑参数、直接反馈四种响应
-- 多工具调用的批量审核
+- 支持接受(accept)、拒绝(reject)、编辑参数(edit)、直接反馈(response)四种响应类型
+- 多工具调用的批量审核支持
+- 自定义工具和MCP服务器工具的差异化审核策略
 
 ### 3. 会话管理
 
 - Redis分布式会话存储
 - 自动会话恢复和状态同步
 - 会话超时和清理机制
+- 支持多会话管理和活跃会话追踪
 
-### 4. 长期记忆
+### 4. 长期记忆服务
 
-- PostgreSQL持久化存储
+- PostgreSQL持久化存储(使用AsyncPostgresStore)
 - 用户偏好和历史记录保存
-- 智能记忆检索和应用
+- 智能记忆检索和应用(自动集成到系统提示词)
+- 独立的记忆服务模块，支持读写操作
 
 ### 5. 多模型支持
 
 - 统一的模型接口抽象
 - 动态模型切换和配置
 - 模型性能监控和日志
+- 支持通义千问(Qwen)、DeepSeek等多种模型
+
+### 6. 工具系统
+
+- MCP服务器工具集成(MultiServerMCPClient)
+- 自定义工具支持(计算、预订等)
+- 工具分类管理(需要审核vs无需审核)
+- 消息修剪中间件，优化token使用
 
 ## 🎯 使用示例
 
@@ -423,4 +462,3 @@ grep "ERROR" logfile/app.log
 **NexusAgent** - 让AI代理更智能、更可控、更实用 🤖✨
 
 ## 📞 联系方式
-

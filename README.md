@@ -31,7 +31,7 @@ NexusAgent/
 │   └── frontend_main.py       # Rich库构建的交互式客户端
 ├── utils/                      # 工具模块
 │   ├── __init__.py
-│   ├── custom_tools.py        # 自定义工具定义(计算、预订等)
+│   ├── custom_tools.py        # 自定义工具定义
 │   ├── data_models.py         # Pydantic数据模型定义
 │   ├── llms.py                # 大语言模型初始化和管理
 │   ├── logger_manager.py      # 日志管理器

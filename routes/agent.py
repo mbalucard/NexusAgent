@@ -1,7 +1,7 @@
 import time
 
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Request
 from typing import Dict, Any, Optional
 
 from langgraph.types import Command
@@ -259,6 +259,22 @@ async def resume_agent(response: InterruptResponse, app_request: Request):
     # 检查会话状态是否为中断 若不是中断则抛出异常
     session = await state.session_manager.get_session(user_id=user_id, session_id=session_id)
     status = session.get("status")
+    last_response = session.get("last_response")
+    last_interrupt_requests = 1
+    last_interrupt_id: Optional[str] = None
+    if last_response:
+        if isinstance(last_response, dict):
+            interrupt_data = last_response.get("interrupt_data") or {}
+        else:
+            interrupt_data = getattr(
+                last_response, "interrupt_data", None) or {}
+        if isinstance(interrupt_data, dict):
+            last_interrupt_id = interrupt_data.get("interrupt_id")
+            action_requests = interrupt_data.get("action_requests")
+        else:
+            action_requests = None
+        if isinstance(action_requests, list) and action_requests:
+            last_interrupt_requests = len(action_requests)
     if status != "interrupted":
         logger.error(f"status_code=400,会话当前状态为 {status}，无法恢复非中断状态的会话")
         raise HTTPException(
@@ -284,37 +300,62 @@ async def resume_agent(response: InterruptResponse, app_request: Request):
         # 构造响应数据
         if response.interrupt_responses:
             # 处理多个中断的情况
-            command_data = response.interrupt_responses
-            logger.info(f"恢复多个中断执行，中断响应数据: {command_data}")
+            decisions = []
+            for interrupt_key, decision_payload in response.interrupt_responses.items():
+                decision_entry = {
+                    "interrupt_id": interrupt_key, **decision_payload}
+                decisions.append(decision_entry)
+            logger.info(f"恢复多个中断执行，中断响应数据: {decisions}")
             result = await state.agent.ainvoke(
-                Command(resume=command_data),
+                Command(resume={"decisions": decisions}),
                 config={"configurable": {"thread_id": session_id}}
             )
         elif response.interrupt_id:
             # 处理单个指定中断ID的情况
             command_data = {
-                response.interrupt_id: {
-                    "type": response.response_type,
-                    **(response.args or {})
-                }
+                "interrupt_id": response.interrupt_id,
+                "type": response.response_type,
+                **(response.args or {})
             }
             logger.info(
                 f"恢复指定中断执行，中断ID: {response.interrupt_id}, 响应数据: {command_data}")
             result = await state.agent.ainvoke(
-                Command(resume=command_data),
+                Command(resume={"decisions": [command_data]}),
                 config={"configurable": {"thread_id": session_id}}
             )
         else:
             # 原有的单中断处理逻辑（向后兼容）
-            command_data = {
+            decisions_override = None
+            base_decision = {
                 "type": response.response_type
             }
             if response.args:
-                command_data["args"] = response.args
+                decisions_override = response.args.get("decisions")
+                extra_args = {
+                    key: value for key, value in response.args.items()
+                    if key != "decisions"
+                }
+                if extra_args:
+                    base_decision["args"] = extra_args
+            decisions_list = []
+            if decisions_override:
+                for item in decisions_override:
+                    decision_entry = dict(item)
+                    if "type" not in decision_entry and response.response_type:
+                        decision_entry["type"] = response.response_type
+                    if last_interrupt_id and "interrupt_id" not in decision_entry:
+                        decision_entry["interrupt_id"] = last_interrupt_id
+                    decisions_list.append(decision_entry)
+            else:
+                for _ in range(last_interrupt_requests):
+                    decision_entry = dict(base_decision)
+                    if last_interrupt_id:
+                        decision_entry["interrupt_id"] = last_interrupt_id
+                    decisions_list.append(decision_entry)
 
-            logger.info(f"恢复单个中断执行（兼容模式），响应数据: {command_data}")
+            logger.info(f"恢复单个中断执行（兼容模式），响应数据: {decisions_list}")
             result = await state.agent.ainvoke(
-                Command(resume=command_data),
+                Command(resume={"decisions": decisions_list}),
                 config={"configurable": {"thread_id": session_id}}
             )
         # 将返回的messages进行格式化输出 方便查看调试

@@ -3,12 +3,13 @@ import uvicorn
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from psycopg_pool import AsyncConnectionPool
+from routes.agent import router as agent_router
 
 from configs.configuration import DatabaseConfig,  ConfigAPI
 from configs.model_configs import ModelParameter
 from utils.redis_manager import get_session_manager
 from utils.llms import get_llm
-from utils.tools import get_tools
+from utils.tools import get_tool_interrupt_configuration, get_all_tools
 from utils.message_tools import trimmed_messages_hook
 from utils.logger_manager import LoggerManager
 from utils.data_models import SystemInfoResponse
@@ -16,7 +17,8 @@ from utils.data_models import SystemInfoResponse
 from langchain.agents import create_agent
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres import AsyncPostgresStore
-from routes.agent import router as agent_router
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+
 
 # 设置日志
 logger = LoggerManager.get_logger(name=__name__)
@@ -54,12 +56,13 @@ async def lifespan(app: FastAPI):
             logger.info("长期记忆store初始化成功")
 
             # 获取工具列表
-            tools = await get_tools()
-
+            tools = await get_all_tools()
+            interrupt_configuration = await get_tool_interrupt_configuration()
             app.state.agent = create_agent(
                 model=llm_chat,
                 tools=tools,
-                middleware=[trimmed_messages_hook],
+                middleware=[trimmed_messages_hook, HumanInTheLoopMiddleware(
+                    interrupt_on=interrupt_configuration, description_prefix="Tool execution requires approval")],
                 checkpointer=app.state.checkpointer,
                 store=app.state.store
             )

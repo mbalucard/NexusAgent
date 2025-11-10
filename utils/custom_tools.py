@@ -8,7 +8,6 @@ async def book_hotel(hotel_name: str):
 
     Args:
         hotel_name: 酒店名称
-
     Returns:
         工具的调用结果
     """

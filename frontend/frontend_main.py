@@ -469,62 +469,73 @@ def handle_multiple_interrupts(interrupt_data, user_id, session_id):
         tuple: (是否有活跃会话, 会话状态响应)
     """
     interrupts = interrupt_data.get("interrupts", [])
-    description = interrupt_data.get("description", f"检测到{len(interrupts)}个工具调用需要审核")
-    
+    description = interrupt_data.get(
+        "description", f"检测到{len(interrupts)}个工具调用需要审核")
+
     console.print(Panel(
         f"{description}\n\n您需要逐一审核每个工具调用",
         title=f"[warning]多个工具需要审核[/warning]",
         border_style="yellow"
     ))
-    
+
     interrupt_responses = {}
-    
+
     try:
         for i, interrupt in enumerate(interrupts):
             action_request = interrupt.get("action_request", {})
             tool_name = action_request.get("action", "未知工具")
             tool_args = action_request.get("args", {})
             interrupt_id = interrupt.get("interrupt_id")
-            
+
             console.print(Panel(
                 f"工具名称: {tool_name}\n参数: {json.dumps(tool_args, ensure_ascii=False, indent=2)}",
                 title=f"[info]工具审核 ({i+1}/{len(interrupts)})[/info]",
                 border_style="blue"
             ))
-            
+
             while True:
-                user_input = Prompt.ask(f"[highlight]是否允许调用工具 {tool_name}? (yes/no/edit/response)[/highlight]")
-                
+                user_input = Prompt.ask(
+                    f"[highlight]是否允许调用工具 {tool_name}? (yes/no/edit)[/highlight]")
+
                 if user_input.lower() == "yes":
-                    interrupt_responses[interrupt_id] = {"type": "accept"}
+                    interrupt_responses[interrupt_id] = {"type": "approve"}
                     console.print(f"[green]✓ 已批准工具 {tool_name}[/green]")
                     break
                 elif user_input.lower() == "no":
-                    interrupt_responses[interrupt_id] = {"type": "reject"}
+                    interrupt_responses[interrupt_id] = {
+                        "type": "reject", "message": "你无权使用该工具，如真有需要，请联系管理员"}
                     console.print(f"[red]✗ 已拒绝工具 {tool_name}[/red]")
                     break
                 elif user_input.lower() == "edit":
-                    new_args = Prompt.ask("[highlight]请输入新的参数 (JSON格式)[/highlight]")
+                    console.print(Panel(
+                        f"当前参数: {json.dumps(tool_args, ensure_ascii=False, indent=2)}",
+                        title="[info]参数参考[/info]",
+                        border_style="cyan"
+                    ))
+                    new_args = Prompt.ask(
+                        "[highlight]请输入新的参数 (JSON格式)[/highlight]")
                     try:
                         parsed_args = json.loads(new_args)
-                        interrupt_responses[interrupt_id] = {"type": "edit", "args": parsed_args}
-                        console.print(f"[yellow]⚠ 已修改工具 {tool_name} 的参数[/yellow]")
+                        interrupt_responses[interrupt_id] = {
+                            "type": "edit", "edited_action": {
+                                "name": tool_name,
+                                "args": parsed_args
+                            }}
+                        console.print(
+                            f"[yellow]⚠ 已修改工具 {tool_name} 的参数[/yellow]")
                         break
                     except json.JSONDecodeError:
                         console.print("[error]参数格式错误，请输入有效的JSON格式[/error]")
-                elif user_input.lower() == "response":
-                    feedback = Prompt.ask("[highlight]请输入直接反馈信息[/highlight]")
-                    interrupt_responses[interrupt_id] = {"type": "response", "args": feedback}
-                    console.print(f"[blue]💬 已设置工具 {tool_name} 的直接反馈[/blue]")
-                    break
                 else:
-                    console.print("[error]无效输入，请输入 'yes'、'no'、'edit' 或 'response'[/error]")
-        
+                    console.print(
+                        "[error]无效输入，请输入 'yes'、'no'、'edit'[/error]")
+
         # 一次性恢复所有中断
         console.print("[info]正在提交所有工具审核结果...[/info]")
-        response = resume_agent_multiple(user_id, session_id, interrupt_responses)
+        response = resume_agent_multiple(
+            user_id, session_id, interrupt_responses)
         return process_agent_response(response, user_id)
-        
+
     except Exception as e:
         console.print(f"[error]处理多个中断响应时出错: {str(e)}[/error]")
         return None
@@ -570,41 +581,181 @@ def handle_tool_interrupt(interrupt_data, user_id, session_id):
         tuple: (是否有活跃会话, 会话状态响应)
     """
     message = interrupt_data.get("description", "需要您的输入")
+    action_requests = interrupt_data.get("action_requests", []) or []
+    interrupt_id = interrupt_data.get("interrupt_id")
+    review_configs = interrupt_data.get("review_configs", []) or []
+    review_map = {}
+    for cfg in review_configs:
+        if isinstance(cfg, dict) and cfg.get("action_name"):
+            review_map[cfg["action_name"]] = [
+                item.lower() for item in cfg.get("allowed_decisions", [])
+            ]
 
     # 显示工具使用审批提示
+    prompt_lines = [message]
+    prompt_lines.append("是否允许调用工具? (yes/no/edit)（默认: yes）")
     console.print(Panel(
-        f"{message}",
+        "\n".join(prompt_lines),
         title=f"[warning]智能体需要您的决定[/warning]",
         border_style="yellow"
     ))
 
+    # 如果一次性有多个工具审核，逐一确认
+    if len(action_requests) > 1:
+        decisions = []
+        for index, action_request in enumerate(action_requests):
+            tool_name = action_request.get("name", f"tool_{index + 1}")
+            tool_args = action_request.get("args", {})
+            allowed_decisions = review_map.get(
+                tool_name, ["approve", "reject", "edit"])
+
+            console.print(Panel(
+                f"工具名称: {tool_name}\n参数: {json.dumps(tool_args, ensure_ascii=False, indent=2)}",
+                title=f"[info]工具审核 ({index + 1}/{len(action_requests)})[/info]",
+                border_style="blue"
+            ))
+
+            while True:
+                display_options = []
+                for option in allowed_decisions:
+                    if option == "approve":
+                        display_options.append("yes")
+                    elif option == "reject":
+                        display_options.append("no")
+                    else:
+                        display_options.append(option)
+                decision_prompt = "/".join(display_options)
+                user_choice = Prompt.ask(
+                    f"[highlight]是否允许调用工具 {tool_name}? ({decision_prompt})[/highlight]",
+                    default=display_options[0] if display_options else "yes"
+                ).strip().lower()
+
+                # 兼容 yes/no 输入
+                if user_choice in {"yes", "y"} and "approve" in allowed_decisions:
+                    user_choice = "approve"
+                elif user_choice in {"no", "n"} and "reject" in allowed_decisions:
+                    user_choice = "reject"
+
+                if user_choice not in allowed_decisions:
+                    console.print(f"[error]无效输入，请输入 {decision_prompt}[/error]")
+                    continue
+
+                decision_entry: Dict[str, Any] = {
+                    "type": user_choice
+                }
+                if interrupt_id:
+                    decision_entry["interrupt_id"] = interrupt_id
+
+                if user_choice == "edit":
+                    while True:
+                        console.print(Panel(
+                            f"工具: {tool_name}\n当前参数: {json.dumps(tool_args, ensure_ascii=False, indent=2)}",
+                            title="[info]参数参考[/info]",
+                            border_style="cyan"
+                        ))
+                        new_args_input = Prompt.ask(
+                            "[highlight]请输入新的参数 (JSON格式)[/highlight]").strip()
+                        if not new_args_input:
+                            console.print("[error]参数不能为空，请重新输入[/error]")
+                            continue
+                        try:
+                            parsed_args = json.loads(new_args_input)
+                            decision_entry["edited_action"] = {
+                                "name": tool_name,
+                                "args": parsed_args
+                            }
+                            console.print(
+                                f"[yellow]⚠ 已修改工具 {tool_name} 的参数[/yellow]")
+                            break
+                        except json.JSONDecodeError:
+                            console.print("[error]参数格式错误，请输入有效的JSON格式[/error]")
+                    if "edited_action" not in decision_entry:
+                        continue
+                    decisions.append(decision_entry)
+                    break
+                else:
+                    if user_choice == "approve":
+                        console.print(f"[green]✓ 已批准工具 {tool_name}[/green]")
+                    elif user_choice == "reject":
+                        console.print(f"[red]✗ 已拒绝工具 {tool_name}[/red]")
+                    decisions.append(decision_entry)
+                    break
+
+        console.print("[info]正在提交所有工具审核结果...[/info]")
+        response = resume_agent(user_id, session_id, "multiple", args={
+                                "decisions": decisions})
+        return process_agent_response(response, user_id)
+
+    # 单个工具的处理逻辑保持不变
     # 获取用户输入
-    user_input = Prompt.ask("[highlight]您的选择[/highlight]")
+    allowed_decisions = review_map.get(
+        action_requests[0].get("name") if action_requests else None,
+        ["approve", "reject", "edit"]
+    )
+    display_options = []
+    for option in allowed_decisions:
+        if option == "approve":
+            display_options.append("yes")
+        elif option == "reject":
+            display_options.append("no")
+        else:
+            display_options.append(option)
+    decision_prompt = "/".join(display_options)
+    user_input = Prompt.ask(
+        f"[highlight]是否允许调用工具? ({decision_prompt})[/highlight]",
+        default=display_options[0] if display_options else "yes"
+    )
 
     # 处理用户输入
+    response = None
     try:
         while True:
             if user_input.lower() == "yes":
-                response = resume_agent(user_id, session_id, "accept")
+                response = resume_agent(user_id, session_id, "approve")
                 break
             elif user_input.lower() == "no":
                 response = resume_agent(user_id, session_id, "reject")
                 break
             elif user_input.lower() == "edit":
-                # 获取新的查询内容
-                new_query = Prompt.ask("[highlight]请调整新的参数[/highlight]")
-                response = resume_agent(user_id, session_id, "edit", args={
-                                        "args": json.loads(new_query)})
-                break
-            elif user_input.lower() == "response":
-                # 获取新的查询内容
-                new_query = Prompt.ask("[highlight]不调用工具直接反馈信息[/highlight]")
-                response = resume_agent(
-                    user_id, session_id, "response", args={"args": new_query})
-                break
+                tool_info = action_requests[0] if action_requests else {}
+                tool_name = tool_info.get("name", "tool")
+                while True:
+                    console.print(Panel(
+                        f"工具: {tool_name}\n当前参数: {json.dumps(tool_info.get('args', {}), ensure_ascii=False, indent=2)}",
+                        title="[info]参数参考[/info]",
+                        border_style="cyan"
+                    ))
+                    new_query = Prompt.ask(
+                        "[highlight]请输入新的参数 (JSON格式)[/highlight]").strip()
+                    if not new_query:
+                        console.print("[error]参数不能为空，请重新输入[/error]")
+                        continue
+                    try:
+                        parsed_args = json.loads(new_query)
+                        decision_payload = {
+                            "type": "edit",
+                            "edited_action": {
+                                "name": tool_name,
+                                "args": parsed_args
+                            }
+                        }
+                        if interrupt_id:
+                            decision_payload["interrupt_id"] = interrupt_id
+                        response = resume_agent(
+                            user_id,
+                            session_id,
+                            "edit",
+                            args={"decisions": [decision_payload]}
+                        )
+                        break
+                    except json.JSONDecodeError:
+                        console.print("[error]参数格式错误，请输入有效的JSON格式[/error]")
+                        continue
+                if response:
+                    break
             else:
                 console.print(
-                    "[error]无效输入，请输入 'yes'、'no' 、'edit' 或 'response'[/error]")
+                    "[error]无效输入，请输入 'yes'、'no' 、'edit'[/error]")
                 user_input = Prompt.ask("[highlight]您的选择[/highlight]")
 
         # 重新获取用户输入（维持当前响应不变）

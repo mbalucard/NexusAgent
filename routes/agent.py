@@ -301,14 +301,18 @@ async def resume_agent(response: InterruptResponse, app_request: Request):
         if response.interrupt_responses:
             # 处理多个中断的情况
             decisions = []
+            # 将中断响应数据转换为决策列表
             for interrupt_key, decision_payload in response.interrupt_responses.items():
+                # 构造决策条目
                 decision_entry = {
                     "interrupt_id": interrupt_key, **decision_payload}
+                # 将决策条目添加到决策列表中
                 decisions.append(decision_entry)
             logger.info(f"恢复多个中断执行，中断响应数据: {decisions}")
+            # 调用智能体恢复多个中断执行
             result = await state.agent.ainvoke(
                 Command(resume={"decisions": decisions}),
-                config={"configurable": {"thread_id": session_id}}
+                config={"configurable": {"thread_id": session_id}}  # 配置线程ID
             )
         elif response.interrupt_id:
             # 处理单个指定中断ID的情况
@@ -331,31 +335,38 @@ async def resume_agent(response: InterruptResponse, app_request: Request):
             }
             if response.args:
                 decisions_override = response.args.get("decisions")
+                # 获取额外的参数
                 extra_args = {
                     key: value for key, value in response.args.items()
                     if key != "decisions"
                 }
+                # 如果额外的参数不为空，则添加到决策条目中
                 if extra_args:
                     base_decision["args"] = extra_args
             decisions_list = []
             if decisions_override:
+                # 如果决策列表不为空，则遍历决策列表
                 for item in decisions_override:
                     decision_entry = dict(item)
+                    # 如果决策条目中没有type，则添加type
                     if "type" not in decision_entry and response.response_type:
                         decision_entry["type"] = response.response_type
+                    # 如果中断ID不为空，则添加中断ID
                     if last_interrupt_id and "interrupt_id" not in decision_entry:
                         decision_entry["interrupt_id"] = last_interrupt_id
                     decisions_list.append(decision_entry)
             else:
+                # 如果决策列表为空，则遍历决策列表
                 for _ in range(last_interrupt_requests):
                     decision_entry = dict(base_decision)
+                    # 如果中断ID不为空，则添加中断ID
                     if last_interrupt_id:
                         decision_entry["interrupt_id"] = last_interrupt_id
                     decisions_list.append(decision_entry)
 
             logger.info(f"恢复单个中断执行（兼容模式），响应数据: {decisions_list}")
             result = await state.agent.ainvoke(
-                Command(resume={"decisions": decisions_list}),
+                Command(resume={"decisions": decisions_list}),  # 配置决策列表
                 config={"configurable": {"thread_id": session_id}}
             )
         # 将返回的messages进行格式化输出 方便查看调试

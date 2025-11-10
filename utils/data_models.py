@@ -42,11 +42,11 @@ class InterruptResponse(BaseModel):
     """
     user_id: str  # 用户唯一标识
     session_id: str  # 会话唯一标识
-    # 响应类型：accept(允许调用), edit(调整工具参数，此时args中携带修改后的调用参数), response(直接反馈信息，此时args中携带修改后的调用参数)，reject(不允许调用)
+    # 响应类型：accept(允许调用), edit(调整工具参数，此时args中携带修改后的调用参数)，reject(不允许调用)
     response_type: str
-    args: Optional[Dict[str, Any]] = None  # 如果是edit, response类型，可能需要额外的参数
+    args: Optional[Dict[str, Any]] = None  # 如果是edit可能需要额外的参数
     interrupt_id: Optional[str] = None  # 中断ID，处理多个中断时需要
-    interrupt_responses: Optional[Dict[str, Dict[str, Any]]] = None  # 多个中断的响应映射，格式: {interrupt_id: {type: "accept/reject/edit/response", args: {...}}}
+    interrupt_responses: Optional[Dict[str, Dict[str, Any]]] = None  # 多个中断的响应映射，格式: {interrupt_id: {type: "accept/reject/edit", args: {...}}}
 
 
 class SystemInfoResponse(BaseModel):

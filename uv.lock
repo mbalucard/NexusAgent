@@ -1166,7 +1166,7 @@ wheels = [
 
 [[package]]
 name = "nexusagent"
-version = "0.1.0"
+version = "0.0.5"
 source = { virtual = "." }
 dependencies = [
     { name = "concurrent-log-handler" },

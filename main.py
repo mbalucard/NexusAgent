@@ -9,7 +9,7 @@ from configs.configuration import DatabaseConfig,  ConfigAPI
 from configs.model_configs import ModelParameter
 from utils.redis_manager import get_session_manager
 from utils.llms import get_llm
-from utils.tools import get_tool_interrupt_configuration, get_all_tools
+from tools.agent_tools import get_tool_interrupt_configuration, get_all_tools
 from utils.message_tools import trimmed_messages_hook
 from utils.logger_manager import LoggerManager
 from utils.data_models import SystemInfoResponse

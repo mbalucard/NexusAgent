@@ -29,16 +29,19 @@ NexusAgent/
 │   └── agent.py               # 智能代理相关的API路由实现
 ├── frontend/                   # 前端模块
 │   └── frontend_main.py       # Rich库构建的交互式客户端
-├── utils/                      # 工具模块
+├── tools/                      # 工具定义与集成
 │   ├── __init__.py
-│   ├── custom_tools.py        # 自定义工具定义
+│   ├── agent_tools.py         # 代理可用的工具注册
+│   └── custom_tools.py        # 自定义工具实现
+├── utils/                      # 核心工具与服务模块
+│   ├── __init__.py
 │   ├── data_models.py         # Pydantic数据模型定义
+│   ├── file_tools.py          # 文件操作辅助方法
 │   ├── llms.py                # 大语言模型初始化和管理
 │   ├── logger_manager.py      # 日志管理器
 │   ├── memory_service.py      # 长期记忆服务(读写用户记忆)
 │   ├── message_tools.py       # 消息处理和解析工具
-│   ├── redis_manager.py       # Redis会话管理器
-│   └── tools.py               # 工具管理和人工审核逻辑
+│   └── redis_manager.py       # Redis会话管理器
 ├── logfile/                    # 日志文件目录
 │   └── app.log                # 应用日志
 ├── markdown/                   # 文档目录

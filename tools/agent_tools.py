@@ -1,7 +1,7 @@
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from configs.mcp_server import mcp_server_configs
-from utils.custom_tools import review_tools, normal_tools
+from tools.custom_tools import review_tools, normal_tools
 from utils.logger_manager import LoggerManager
 
 # 设置日志
@@ -55,26 +55,6 @@ async def get_all_tools():
     return tools
 
 
-def read_md_file(file_path: str) -> str:
-    """
-    读取指定路径的md文件
-
-    Args:
-        file_path: md文件的路径
-
-    Returns:
-        文件内容字符串
-    """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            content = file.read()
-        return content
-    except FileNotFoundError:
-        return f"文件 {file_path} 不存在"
-    except Exception as e:
-        return f"读取文件时出错: {str(e)}"
-
-
 if __name__ == "__main__":
     import asyncio
     tools = asyncio.run(get_all_tools())
@@ -83,4 +63,3 @@ if __name__ == "__main__":
         print(f"工具描述 (Description): {tool.description}")
         print(f"工具参数 (Args): {tool.args}")
         print("=" * 30)  # 打印分隔线
-

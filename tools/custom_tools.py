@@ -76,11 +76,6 @@ async def subtract(a: float, b: float) -> float:
     result = a - b
     return f"{a}减{b}等于{result}。"
 
-# 需要人工审核的工具列表
-review_tools = [book_hotel, book_flight_ticket]
-# 不需要人工审核的工具列表
-normal_tools = [multiply, add, subtract]
 
-if __name__ == "__main__":
-    print(f"review_tools: {review_tools}")
-    print(f"normal_tools: {normal_tools}")
+
+

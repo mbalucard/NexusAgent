@@ -17,22 +17,24 @@ NexusAgent 是一个基于 LangGraph 和 FastAPI 构建的现代化智能代理�
 
 ## 📁 项目结构
 
-```
+```text
 NexusAgent/
 ├── configs/                    # 配置模块
 │   ├── __init__.py
 │   ├── configuration.py       # 主要配置类(数据库、Redis、API等)
 │   ├── mcp_server.py          # MCP服务器配置
-│   └── model_configs.py       # 模型配置参数
+│   ├── model_configs.py       # 模型配置参数
+│   └── request_configs.py     # 请求配置(测试环境配置等)
 ├── routes/                     # API路由模块
 │   ├── __init__.py
 │   └── agent.py               # 智能代理相关的API路由实现
 ├── frontend/                   # 前端模块
 │   └── frontend_main.py       # Rich库构建的交互式客户端
 ├── tools/                      # 工具定义与集成
-│   ├── __init__.py
-│   ├── agent_tools.py         # 代理可用的工具注册
-│   └── custom_tools.py        # 自定义工具实现
+│   ├── __init__.py            # 工具注册和管理模块
+│   ├── custom_tools.py        # 自定义工具实现(计算、预订等基础工具)
+│   ├── user_func.py           # 用户管理工具(用户列表查询等)
+│   └── institution_func.py    # 机构管理工具(机构及部门列表查询等)
 ├── utils/                      # 核心工具与服务模块
 │   ├── __init__.py
 │   ├── data_models.py         # Pydantic数据模型定义
@@ -152,6 +154,9 @@ DASHSCOPE_API_KEY=your_dashscope_api_key
 DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 DEEPSEEK_API_KEY=your_deepseek_api_key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
+
+# 测试环境配置(可选，用于用户和机构管理工具)
+TEST_URL=https://your-api-url.com
 ```
 
 ### 4. 数据库初始化
@@ -350,8 +355,13 @@ Content-Type: application/json
 ### 6. 工具系统
 
 - MCP服务器工具集成(MultiServerMCPClient)
-- 自定义工具支持(计算、预订等)
-- 工具分类管理(需要审核vs无需审核)
+- 自定义工具支持:
+  - **基础工具**: 计算工具(加法、减法、乘法)、预订工具(酒店、机票)
+  - **用户管理工具**: 用户列表查询(支持机构筛选、关键词搜索、分页)
+  - **机构管理工具**: 机构及部门列表查询(支持层级查询)
+- 工具分类管理:
+  - **需要审核的工具**: 预订类工具、MCP服务器工具
+  - **无需审核的工具**: 计算工具、用户查询工具、机构查询工具
 - 消息修剪中间件，优化token使用
 
 ## 🎯 使用示例

@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from typing import Dict, Any, Optional
 
 from langgraph.types import Command
+from langchain.messages import HumanMessage, AIMessage, SystemMessage
 
 from utils.memory_service import get_memory_service
 from utils.logger_manager import LoggerManager
@@ -139,7 +140,7 @@ async def invoke_agent(request: AgentRequest, app_request: Request):
         long_term_info = result.get("long_term_info")
         # 若获取到的内容不为空 则将记忆内容拼接到系统提示词中
         if long_term_info:
-            system_message = f"{request.system_message}我的附加信息有:{long_term_info}"
+            system_message = f"{request.system_message},用户的附加信息有:{long_term_info}"
             logger.info(f"获取用户偏好配置数据，system_message的信息为:{system_message}")
         # 若获取到的内容为空，则直接使用系统提示词
         else:
@@ -148,6 +149,11 @@ async def invoke_agent(request: AgentRequest, app_request: Request):
     else:
         system_message = request.system_message
         logger.info(f"未获取到用户偏好配置数据，system_message的信息为:{system_message}")
+    
+    # 将参数信息拼接到系统提示词中
+    if request.parameter_info:
+        system_message = f"{system_message},用户的参数信息有:{request.parameter_info}"
+        logger.info(f"用户的参数信息有:{request.parameter_info}")
 
     # 判断当前用户会话是否存在
     exists = await state.session_manager.session_id_exists(user_id=user_id, session_id=session_id)
@@ -187,8 +193,8 @@ async def invoke_agent(request: AgentRequest, app_request: Request):
 
     # 构造智能体输入消息体
     messages = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": request.query}
+        SystemMessage(content=system_message),
+        HumanMessage(content=request.query)
     ]
 
     try:

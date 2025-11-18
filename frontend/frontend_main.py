@@ -33,7 +33,8 @@ def invoke_agent(
     user_id: str,
     session_id: str,
     query: str,
-    system_message: str = "你会使用工具来帮助用户。如果工具使用被拒绝，请提示用户。"
+    system_message: str = "你会使用工具来帮助用户。如果工具使用被拒绝，请提示用户。",
+    parameter_info: Optional[Dict[str, Any]] = None
 ):
     """
     调用智能体处理查询，并等待完成或中断
@@ -42,6 +43,7 @@ def invoke_agent(
         session_id: 会话唯一标识
         query: 用户待查询的问题
         system_message: 系统提示词
+        parameter_info: 参数信息
     Returns:
         dict: 智能体响应
     """
@@ -50,7 +52,8 @@ def invoke_agent(
         "user_id": user_id,
         "session_id": session_id,
         "query": query,
-        "system_message": system_message
+        "system_message": system_message,
+        "parameter_info": parameter_info
     }
     console.print("[info]正在发送请求到智能体，请稍候...[/info]")
 
@@ -1017,7 +1020,19 @@ def main():
 
             # 运行智能体
             console.print("[info]正在提交查询，请求运行智能体...[/info]")
-            response = invoke_agent(user_id, session_id, query)
+            # ! 参数信息 这里只是展示用，实际需前端传入
+            parameter = Prompt.ask(
+                "[info]请输入需要传递给智能体的授权token信息[/info]")
+
+            parameter_info = {
+                "authorization": parameter if parameter else None
+            }
+            response = invoke_agent(
+                user_id=user_id,
+                session_id=session_id,
+                query=query,
+                parameter_info=parameter_info if parameter_info else None
+            )
 
             # 处理智能体返回的响应
             result = process_agent_response(response, user_id)

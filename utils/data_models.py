@@ -14,6 +14,8 @@ class AgentRequest(BaseModel):
     session_id: str  # 会话唯一标识
     query: str  # 用户问题
     system_message: Optional[str] = read_md_file(FilePath.SYSTEM_MESSAGE_PATH)  # 系统提示词
+    parameter_info: Optional[Dict[str, Any]] = None  # 参数信息
+
 
 
 class LongMemRequest(BaseModel):

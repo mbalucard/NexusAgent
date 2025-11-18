@@ -8,12 +8,12 @@ from configs.request_configs import test_env
 
 
 class UserListArgs(BaseModel):
-    authorization: str = Field(..., description="授权token，以Bearer开头的字符串，必填")
+    authorization: str = Field(..., description="授权token，以Bearer开头的字符串")
     organId: Optional[int] = Field(
-        None, description="机构ID，不提供则查询所有用户信息，含离职员工，默认为0")
-    current: int = Field(1, description="页码，默认为1")
-    keyword: str = Field("", description="搜索用关键字，可不提供")
-    size: int = Field(100, description="每页条数，每页获取的用户数量，默认100条，最大200条")
+        None, description="机构ID，不提供则查询所有用户信息，含离职员工")
+    current: int = Field(1, ge=1, description="页码")
+    keyword: str = Field("", description="搜索用关键字")
+    size: int = Field(100, ge=10, le=1000, description="每页条数，每页获取的用户数量")
 
 
 @tool("user_list", description="获取用户列表明细", args_schema=UserListArgs)
@@ -27,10 +27,10 @@ async def user_list(
     用户列表
     Args:
         authorization (str): 授权token，必填
-        organId (int, optional): 机构ID. Defaults to None.
-        current (int, optional): 页码，Defaults to 1.
-        keyword (str, optional): 搜索用关键字. Defaults to "".
-        size (int, optional): 每页条数，每页获取的用户数量，默认100条，最大200条. Defaults to 100.
+        organId (int, optional): 机构ID.
+        current (int, optional): 页码，
+        keyword (str, optional): 搜索用关键字. 
+        size (int, optional): 每页条数，每页获取的用户数量
     Returns:
         dict: 用户列表
     """

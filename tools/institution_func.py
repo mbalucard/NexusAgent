@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from configs.request_configs import test_env
 
 class InstitutionListArgs(BaseModel):
-    authorization: str = Field(..., description="授权，以Bearer开头的字符串，必须")
+    authorization: str = Field(..., description="授权，以Bearer开头的字符串")
     parentId: Optional[int] = Field(None, description="机构ID，若不提供则返回全量机构列表")
 
 @tool("institution_list", description="机构及部门列表", args_schema=InstitutionListArgs)
@@ -19,7 +19,7 @@ async def institution_list(
     机构及部门列表
     Args:
         authorization (str): 授权token
-        parentId (int, optional): 机构ID. Defaults to None.
+        parentId (int, optional): 机构ID. 
     Returns:
         dict: 机构及部门列表
     """
